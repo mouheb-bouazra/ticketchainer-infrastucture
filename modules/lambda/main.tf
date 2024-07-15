@@ -114,7 +114,7 @@ resource "aws_lambda_function" "customAuthValidator" {
     variables = {
       JWT_PUBLIC_KEY = var.jwt_public_key
       REDIS_URL      = var.redis_endpoint
-      DESTINATION    = "${var.api_gateway_execution_arn}/GET/"
+      DESTINATION    = "${var.api_gateway_execution_arn}/*/GET/"
     }
   }
 }

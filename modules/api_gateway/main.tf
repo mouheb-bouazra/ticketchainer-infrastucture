@@ -34,8 +34,8 @@ resource "aws_api_gateway_integration" "integration" {
   rest_api_id             = data.aws_api_gateway_rest_api.custom_auth_api.id
   resource_id             = data.aws_api_gateway_resource.custom_auth_api.id
   http_method             = aws_api_gateway_method.custom_auth_method.http_method
-  integration_http_method = "GET"
-  type                    = "AWS"
+  integration_http_method = "POST" # call lambda with POST even if the method is not a POST
+  type                    = "AWS_PROXY"
   uri                     = data.aws_lambda_function.protected_lambda.invoke_arn
 }
 
@@ -44,9 +44,13 @@ resource "aws_api_gateway_method_response" "response_200" {
   resource_id = data.aws_api_gateway_resource.custom_auth_api.id
   http_method = aws_api_gateway_method.custom_auth_method.http_method
   status_code = "200"
+
+  response_models = {
+    "application/json" = "Empty"
+  }
 }
 
-resource "aws_api_gateway_integration_response" "integration-response" {
+resource "aws_api_gateway_integration_response" "integration_response" {
   rest_api_id = data.aws_api_gateway_rest_api.custom_auth_api.id
   resource_id = data.aws_api_gateway_resource.custom_auth_api.id
   http_method = aws_api_gateway_method.custom_auth_method.http_method
@@ -63,6 +67,7 @@ resource "aws_lambda_permission" "apigw_lambda" {
 
   source_arn = "${data.aws_api_gateway_rest_api.custom_auth_api.execution_arn}/*/${aws_api_gateway_method.custom_auth_method.http_method}${data.aws_api_gateway_resource.custom_auth_api.path}"
 }
+
 
 resource "aws_api_gateway_deployment" "custom_auth_deployment" {
   rest_api_id = data.aws_api_gateway_rest_api.custom_auth_api.id
