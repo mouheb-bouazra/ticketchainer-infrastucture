@@ -2,6 +2,10 @@
 
 variable "region" {}
 variable "profile" {}
+variable "enabled_for_orgs" {
+  type = string
+  description = "list of organizations that are enabled for the waiting room and separated by a comma"
+}
 variable "cidr_block" {}
 variable "subnet_cidr_blocks" {}
 variable "jwt_public_key" {

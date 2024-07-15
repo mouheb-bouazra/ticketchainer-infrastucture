@@ -11,6 +11,7 @@ resource "aws_lambda_layer_version" "lambda_layer" {
   layer_name = "lambda_layer"
 
   compatible_runtimes = ["nodejs18.x"]
+  source_code_hash    = data.archive_file.lambda.output_base64sha256
 }
 
 resource "aws_iam_role" "iam_for_lambda" {
@@ -59,7 +60,6 @@ resource "aws_cloudwatch_log_group" "lambda_log_group" {
   name = "/aws/lambda/customAuthValidator-terraform"
 }
 
-
 resource "aws_iam_policy" "network_interface_policy" {
   name        = "network_interface_policy"
   description = "Policy to allow Lambda function to create network interfaces and manage network resources"
@@ -67,8 +67,8 @@ resource "aws_iam_policy" "network_interface_policy" {
     Version = "2012-10-17",
     Statement = [
       {
-        "Effect" : "Allow",
-        "Action" : [
+        Effect : "Allow",
+        Action : [
           "ec2:CreateNetworkInterface",
           "ec2:DescribeNetworkInterfaces",
           "ec2:DeleteNetworkInterface",
@@ -82,9 +82,7 @@ resource "aws_iam_policy" "network_interface_policy" {
           "ec2:DescribeVpcs",
           "ec2:DescribeSubnets"
         ],
-        "Resource" : [
-          "*"
-        ]
+        Resource : "*"
       },
     ]
   })
@@ -93,6 +91,11 @@ resource "aws_iam_policy" "network_interface_policy" {
 resource "aws_iam_role_policy_attachment" "lambda_network_interface" {
   role       = aws_iam_role.iam_for_lambda.name
   policy_arn = aws_iam_policy.network_interface_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_ssm_readonly" {
+  role       = aws_iam_role.iam_for_lambda.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMReadOnlyAccess"
 }
 
 resource "aws_lambda_function" "customAuthValidator" {
@@ -112,9 +115,11 @@ resource "aws_lambda_function" "customAuthValidator" {
 
   environment {
     variables = {
-      JWT_PUBLIC_KEY = var.jwt_public_key
-      REDIS_URL      = var.redis_endpoint
-      DESTINATION    = "${var.api_gateway_execution_arn}/*/GET/"
+      REGION           = var.region
+      JWT_PUBLIC_KEY   = var.jwt_public_key
+      REDIS_URL        = var.redis_endpoint
+      DESTINATION      = "${var.api_gateway_execution_arn}/*/GET/"
+      ENABLED_FOR_ORGS = var.enabled_for_orgs
     }
   }
 }

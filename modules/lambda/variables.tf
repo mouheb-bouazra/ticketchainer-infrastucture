@@ -23,3 +23,11 @@ variable "redis_endpoint" {
 variable "api_gateway_execution_arn" {
   type = string
 }
+
+
+variable "region" {
+  type = string
+}
+variable "enabled_for_orgs" {
+  type = string
+}

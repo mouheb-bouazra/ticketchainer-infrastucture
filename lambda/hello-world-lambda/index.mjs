@@ -1,40 +1,45 @@
 import { exportJWK, jwtVerify, importJWK } from 'jose';
 import crypto from 'crypto';
 import { createClient } from 'redis'
+// import { SSMClient, GetParameterCommand } from '@aws-sdk/client-ssm'
 
 
+// const ssmClient = new SSMClient({ region: process.env.REGION });
 let client
 
 export const handler = async (event, context) => {
+    // const organizations = await getParameter('waiting-room'); # for some reason it didn't work
     const { authorization } = event?.headers
     const { domainName } = event?.requestContext
     const destination = process.env.DESTINATION
-    console.log({
-        domainName,
-        methodArn: event.methodArn,
-        destination
-    })
+    const orgIds = process.env.ENABLED_FOR_ORGS.split(',')
+    console.log("########### 0", JSON.stringify(event, null, 2));
+
+    if (!orgIds || !orgIds.length) {
+        return getPolicy('Allow', destination);
+    }
+
     if (authorization) {
         const token = authorization
 
         let isAllowed = 'Deny';
         try {
-            console.log('##################### 1');
             const publicJwk = await convertKeyStringToRsaKey(process.env.JWT_PUBLIC_KEY);
             const cryptoKey = await importJWK(publicJwk, 'RS256');
 
             const { payload } = await jwtVerify(token || '', cryptoKey);
-            console.log('##################### 2', payload);
+
+            if (!orgIds.includes(payload.orgId)) {
+                return getPolicy('Allow', destination);
+            }
 
             // Check expiration
             const currentDate = new Date();
             const expiresAt = new Date(payload.exp * 1000); // Convert to milliseconds
 
-            console.log('##################### 3', currentDate < expiresAt);
             if (currentDate < expiresAt) {
                 isAllowed = 'Allow';
 
-                console.log('##################### 3.1', isAllowed);
                 // store token in redis
                 const url = process.env.REDIS_URL;
                 client = createClient({
@@ -44,43 +49,21 @@ export const handler = async (event, context) => {
                     }
                 });
 
-                console.log('##################### 4 connecting to redis');
                 client.on('error', error => console.error('Redis Client Error:', error));
                 client.on('connect', () => console.log('Redis Client Connected!'));
 
                 await client.connect();
-                console.log('##################### 5 connected to redis');
 
                 await storeData({ redisClient: client, value: payload.token, orgId: payload.orgId })
-                console.log('##################### 6 stored token in redis');
             }
-
-            return {
-                policyDocument: {
-                    Version: "2012-10-17",
-                    Statement: [
-                        {
-                            Action: "execute-api:Invoke",
-                            Resource: [destination],
-                            Effect: isAllowed,
-                        },
-                    ],
-                },
-            };
+            const policy = getPolicy(isAllowed, destination);
+            console.log('##################### 7', {
+                policy: JSON.stringify(policy)
+            });
+            return policy;
         } catch (err) {
             console.log('JWT verification failed:', err.message);
-            return {
-                policyDocument: {
-                    Version: "2012-10-17",
-                    Statement: [
-                        {
-                            Action: "execute-api:Invoke",
-                            Resource: [destination],
-                            Effect: 'Deny',
-                        },
-                    ],
-                },
-            };
+            return getPolicy('Deny', destination)
         }
     }
 };
@@ -119,3 +102,34 @@ const storeData = async (input) => {
         // await redisClient.disconnect();
     }
 }
+
+const getPolicy = (isAllowed, destination) => {
+    return {
+        policyDocument: {
+            Version: "2012-10-17",
+            Statement: [
+                {
+                    Action: "execute-api:Invoke",
+                    Resource: [destination],
+                    Effect: isAllowed,
+                },
+            ],
+        },
+    }
+}
+
+
+// const getParameter = async (name) => {
+//     try {
+//         const command = new GetParameterCommand({
+//             Name: name,
+//             // WithDecryption: true // Set to true if the parameter is encrypted
+//         });
+
+//         const response = await ssmClient.send(command);
+//         return response.Parameter.Value;
+//     } catch (error) {
+//         console.error('Error retrieving parameter:', error);
+//         throw error; // Rethrow the error for proper handling
+//     }
+// };

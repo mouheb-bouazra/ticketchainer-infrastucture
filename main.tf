@@ -26,6 +26,8 @@ module "lambda" {
   jwt_public_key            = var.jwt_public_key
   redis_endpoint            = module.redis.endpoint_address
   api_gateway_execution_arn = module.api_gateway.instance.execution_arn
+  region                    = var.region
+  enabled_for_orgs          = var.enabled_for_orgs
 }
 
 module "api_gateway" {
